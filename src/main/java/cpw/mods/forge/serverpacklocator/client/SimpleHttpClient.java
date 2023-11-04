@@ -19,8 +19,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class SimpleHttpClient {
     private static final Logger LOGGER = LogManager.getLogger();
@@ -106,7 +109,7 @@ public class SimpleHttpClient {
                 .header("User-Agent", USER_AGENT)
                 .GET()
                 .build();
-        return client.sendAsync(request, HttpResponse.BodyHandlers.ofFile(targetPath))
+        return client.sendAsync(request, HttpResponse.BodyHandlers.ofFile(targetPath, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING))
                 .thenAccept(response -> LaunchEnvironmentHandler.INSTANCE.addProgressMessage("Finished downloading file: " + fileName));
     }
 
