@@ -80,9 +80,6 @@ public class ServerFileManager {
                 .setForgeVersion(forgeVersion);
 
         for (final IModFile file : modList) {
-            if (file.getFileName().equals("serverpackutility.jar")) {
-                continue;
-            }
             final HashCode checksum = FileChecksumValidator.computeChecksumFor(file.getFilePath());
             if (checksum == null) {
                 throw new IllegalArgumentException("Invalid checksum for file " + file.getFileName());

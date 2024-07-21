@@ -21,7 +21,6 @@ public abstract class SidedPackHandler implements IModLocator {
         packConfig.load();
         packConfig.close();
         isValid = validateConfig();
-        ModAccessor.needsCertificate = !this.isValid;
     }
 
     protected abstract boolean validateConfig();

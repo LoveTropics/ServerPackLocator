@@ -37,10 +37,7 @@ public class PackLocator implements IModLocator {
 
     @Override
     public List<ModFileOrException> scanMods() {
-        final List<ModFileOrException> mods = sidedLocator.scanMods();
-        final boolean successfulDownload = mods.stream().anyMatch(e -> e.file() != null);
-        ModAccessor.statusLine = "ServerPack: " + (successfulDownload ? "loaded" : "NOT loaded");
-        return mods;
+        return sidedLocator.scanMods();
     }
 
     @Override
@@ -58,7 +55,7 @@ public class PackLocator implements IModLocator {
         sidedLocator.initArguments(arguments);
 
         URL url = getClass().getProtectionDomain().getCodeSource().getLocation();
-        LOGGER.info("Loading server pack locator from: " + url.toString());
+        LOGGER.info("Loading server pack locator from: {}", url.toString());
     }
 
     @Override
