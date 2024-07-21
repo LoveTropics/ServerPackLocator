@@ -1,28 +1,20 @@
 package cpw.mods.forge.serverpacklocator;
 
 import com.mojang.logging.LogUtils;
-import cpw.mods.modlauncher.api.LamdbaExceptionUtils;
-import net.minecraftforge.forgespi.language.IModFileInfo;
-import net.minecraftforge.forgespi.language.IModInfo;
-import net.minecraftforge.forgespi.locating.IModFile;
+import net.neoforged.neoforgespi.language.IModInfo;
+import net.neoforged.neoforgespi.locating.IModFile;
 import org.apache.maven.artifact.versioning.ArtifactVersion;
 import org.slf4j.Logger;
 
-import javax.annotation.Nullable;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.*;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class PackBuilder {
     private static final Logger LOGGER = LogUtils.getLogger();
-
-    private static Map<IModFile, IModFileInfo> infos = Map.of();
-    @Nullable
-    private static Field modInfoParser;
-    @Nullable
-    private static Method modFileParser;
 
     private final Set<String> excludedModIds;
 
@@ -30,21 +22,9 @@ public class PackBuilder {
         this.excludedModIds = excludedModIds;
     }
 
-    public static List<IModInfo> getModInfos(final IModFile modFile) {
-        if (modInfoParser == null) {
-            final Class<?> mfClass = LamdbaExceptionUtils.uncheck(() -> Class.forName("net.minecraftforge.fml.loading.moddiscovery.ModFile"));
-            modInfoParser = LamdbaExceptionUtils.uncheck(() -> mfClass.getDeclaredField("parser"));
-            modInfoParser.setAccessible(true);
-            final Class<?> mfpClass = LamdbaExceptionUtils.uncheck(() -> Class.forName("net.minecraftforge.fml.loading.moddiscovery.ModFileParser"));
-            modFileParser = Arrays.stream(mfpClass.getMethods()).filter(m -> m.getName().equals("readModList")).findAny().orElseThrow(() -> new RuntimeException("BARFY!"));
-            infos = new HashMap<>();
-        }
-        final IModFileInfo info = infos.computeIfAbsent(modFile, LamdbaExceptionUtils.rethrowFunction(junk -> (IModFileInfo) modFileParser.invoke(null, modFile, modInfoParser.get(modFile))));
-        return info.getMods();
-    }
-
     public static String getRootModId(final IModFile modFile) {
-        return modFile.getType() == IModFile.Type.MOD ? getModInfos(modFile).get(0).getModId() : modFile.getFileName();
+        final List<IModInfo> modInfos = modFile.getModInfos();
+        return modFile.getType() == IModFile.Type.MOD && !modInfos.isEmpty() ? modInfos.getFirst().getModId() : modFile.getFileName();
     }
 
     public List<IModFile> buildModList(final List<IModFile> files) {
@@ -61,7 +41,7 @@ public class PackBuilder {
         if (files.isEmpty()) {
             return Stream.empty();
         } else if (files.size() == 1) {
-            return Stream.of(files.get(0));
+            return Stream.of(files.getFirst());
         }
         if (!files.stream().allMatch(file -> file.getType() == IModFile.Type.MOD)) {
             return files.stream();
@@ -76,7 +56,7 @@ public class PackBuilder {
     }
 
     private static ArtifactVersion getRootVersion(IModFile file) {
-        return getModInfos(file).get(0).getVersion();
+        return file.getModInfos().getFirst().getVersion();
     }
 
 }

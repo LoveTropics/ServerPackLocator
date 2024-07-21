@@ -2,12 +2,12 @@ package cpw.mods.forge.serverpacklocator;
 
 import com.electronwill.nightconfig.core.ConfigFormat;
 import com.electronwill.nightconfig.core.file.FileConfig;
-import net.minecraftforge.forgespi.locating.IModLocator;
+import net.neoforged.neoforgespi.locating.IModFileCandidateLocator;
 
 import java.io.IOException;
 import java.nio.file.Path;
 
-public abstract class SidedPackHandler implements IModLocator {
+public abstract class SidedPackHandler implements IModFileCandidateLocator {
     protected final Path serverModsDir;
     private final FileConfig packConfig;
     private final boolean isValid;

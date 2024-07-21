@@ -1,31 +1,33 @@
 package cpw.mods.forge.serverpacklocator.client;
 
 import com.electronwill.nightconfig.core.ConfigFormat;
-import cpw.mods.forge.serverpacklocator.LaunchEnvironmentHandler;
 import cpw.mods.forge.serverpacklocator.ServerManifest;
 import cpw.mods.forge.serverpacklocator.SidedPackHandler;
-import net.minecraftforge.forgespi.locating.IModDirectoryLocatorFactory;
-import net.minecraftforge.forgespi.locating.IModFile;
-import net.minecraftforge.forgespi.locating.IModLocator;
-import net.minecraftforge.forgespi.locating.ModFileLoadingException;
+import net.neoforged.fml.ModLoadingException;
+import net.neoforged.fml.ModLoadingIssue;
+import net.neoforged.neoforgespi.ILaunchContext;
+import net.neoforged.neoforgespi.locating.IDiscoveryPipeline;
+import net.neoforged.neoforgespi.locating.IncompatibleFileReporting;
+import net.neoforged.neoforgespi.locating.ModFileDiscoveryAttributes;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.function.Consumer;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ClientSidedPackHandler extends SidedPackHandler {
     private static final Logger LOGGER = LogManager.getLogger();
-
-    @Nullable
-    private IModLocator serverModLocator;
-    @Nullable
-    private SimpleHttpClient clientDownloader;
 
     public ClientSidedPackHandler(final Path serverModsDir) {
         super(serverModsDir);
@@ -49,57 +51,47 @@ public class ClientSidedPackHandler extends SidedPackHandler {
     }
 
     @Override
-    public List<ModFileOrException> scanMods() {
-        final ServerManifest manifest = clientDownloader != null ? clientDownloader.waitForResult() : null;
-        if (manifest == null) {
+    public void findCandidates(final ILaunchContext context, final IDiscoveryPipeline pipeline) {
+        if (!isValid()) {
             LOGGER.info("There was a problem with the connection, there will not be any server mods");
-            return List.of(new ModFileOrException(null, new ModFileLoadingException("Failed to download server pack")));
+            return;
         }
 
-        if (serverModLocator == null) {
-            throw new IllegalArgumentException("Pack locator has not been initialized");
+        final List<String> excludedModIds = getConfig().<List<String>>getOptional("client.excludedModIds").orElse(List.of());
+        final SimpleHttpClient clientDownloader = new SimpleHttpClient(this, Set.copyOf(excludedModIds), serverModsDir);
+
+        final ServerManifest manifest = clientDownloader.waitForResult();
+        if (manifest == null) {
+            pipeline.addIssue(ModLoadingIssue.warning("Failed to download server pack! Mods may not be loaded.\nPlease check your internet connection and restart your game, or contact the server administrator if the issue persists."));
+            return;
         }
 
         final Set<String> manifestFileList = manifest.files().stream()
                 .map(ServerManifest.ModFileData::fileName)
                 .collect(Collectors.toSet());
-
-        return serverModLocator.scanMods().stream()
-                .filter(entry -> {
-                    final IModFile file = entry.file();
-                    if (file == null) {
-                        return true;
-                    }
-                    return manifestFileList.contains(file.getFileName());
-                })
-                .toList();
+        discoverModFiles(pipeline, manifestFileList::contains);
     }
 
-    @Override
-    public void initArguments(final Map<String, ?> arguments) {
-        final IModDirectoryLocatorFactory locatorFactory = LaunchEnvironmentHandler.INSTANCE.getModFolderFactory();
-        serverModLocator = locatorFactory.build(serverModsDir, "serverpack");
-
-        if (isValid()) {
-            final List<String> excludedModIds = getConfig().<List<String>>getOptional("client.excludedModIds").orElse(List.of());
-            clientDownloader = new SimpleHttpClient(this, Set.copyOf(excludedModIds), serverModsDir);
+    private void discoverModFiles(final IDiscoveryPipeline pipeline, final Predicate<String> fileNamePredicate) {
+        final List<Path> directoryContent;
+        try (final Stream<Path> files = Files.list(serverModsDir)) {
+            directoryContent = files
+                    .filter(path -> fileNamePredicate.test(path.getFileName().toString()))
+                    .sorted(Comparator.comparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT)))
+                    .toList();
+        } catch (final UncheckedIOException | IOException e) {
+            throw new ModLoadingException(ModLoadingIssue.error("fml.modloadingissue.failed_to_list_folder_content", serverModsDir)
+                    .withAffectedPath(serverModsDir)
+                    .withCause(e)
+            );
         }
-    }
 
-    @Override
-    public void scanFile(final IModFile modFile, final Consumer<Path> pathConsumer) {
-        if (serverModLocator != null) {
-            serverModLocator.scanFile(modFile, pathConsumer);
+        for (final Path file : directoryContent) {
+            if (!Files.isRegularFile(file)) {
+                pipeline.addIssue(ModLoadingIssue.warning("fml.modloadingissue.brokenfile.unknown").withAffectedPath(file));
+                continue;
+            }
+            pipeline.addPath(file, ModFileDiscoveryAttributes.DEFAULT, IncompatibleFileReporting.WARN_ALWAYS);
         }
-    }
-
-    @Override
-    public boolean isValid(final IModFile modFile) {
-        return serverModLocator != null && serverModLocator.isValid(modFile);
-    }
-
-    @Override
-    public String name() {
-        return "serverpacklocator";
     }
 }

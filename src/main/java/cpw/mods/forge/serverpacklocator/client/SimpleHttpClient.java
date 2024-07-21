@@ -6,7 +6,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.mojang.serialization.DataResult;
 import cpw.mods.forge.serverpacklocator.DirHandler;
 import cpw.mods.forge.serverpacklocator.FileChecksumValidator;
-import cpw.mods.forge.serverpacklocator.LaunchEnvironmentHandler;
+import cpw.mods.forge.serverpacklocator.LaunchProgressReporter;
 import cpw.mods.forge.serverpacklocator.ServerManifest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,7 +20,11 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -76,7 +80,7 @@ public class SimpleHttpClient {
 
     private CompletableFuture<ServerManifest> downloadManifest(final String host) {
         LOGGER.info("Requesting server manifest from: {}", host);
-        LaunchEnvironmentHandler.INSTANCE.addProgressMessage("Requesting server manifest from: " + host);
+        LaunchProgressReporter.add("Requesting server manifest from: " + host);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(host + "/servermanifest.json"))
                 .header("User-Agent", USER_AGENT)
@@ -102,7 +106,7 @@ public class SimpleHttpClient {
 
         final String fileName = modFile.fileName();
         LOGGER.info("Requesting file: {}", fileName);
-        LaunchEnvironmentHandler.INSTANCE.addProgressMessage("Requesting file: " + fileName);
+        LaunchProgressReporter.add("Requesting file: " + fileName);
 
         final URI uri = URI.create(host + "/files/" + URLEncoder.encode(fileName, StandardCharsets.UTF_8).replaceAll("\\+", "%20"));
         final HttpRequest request = HttpRequest.newBuilder(uri)
@@ -110,7 +114,7 @@ public class SimpleHttpClient {
                 .GET()
                 .build();
         return client.sendAsync(request, HttpResponse.BodyHandlers.ofFile(targetPath, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING))
-                .thenAccept(response -> LaunchEnvironmentHandler.INSTANCE.addProgressMessage("Finished downloading file: " + fileName));
+                .thenAccept(response -> LaunchProgressReporter.add("Finished downloading file: " + fileName));
     }
 
     private Path resolvePath(final ServerManifest.ModFileData modFile) {

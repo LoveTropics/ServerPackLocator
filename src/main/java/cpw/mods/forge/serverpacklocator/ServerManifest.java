@@ -11,20 +11,20 @@ import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
-import javax.annotation.Nullable;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
-public record ServerManifest(String forgeVersion, List<ModFileData> files) {
+public record ServerManifest(List<ModFileData> files) {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public static final Codec<ServerManifest> CODEC = RecordCodecBuilder.create(i -> i.group(
-            Codec.STRING.fieldOf("forgeVersion").forGetter(ServerManifest::forgeVersion),
             ModFileData.CODEC.listOf().fieldOf("files").forGetter(ServerManifest::files)
     ).apply(i, ServerManifest::new));
 
@@ -74,14 +74,7 @@ public record ServerManifest(String forgeVersion, List<ModFileData> files) {
     }
 
     public static class Builder {
-        @Nullable
-        private String forgeVersion;
         private final ImmutableList.Builder<ModFileData> mods = ImmutableList.builder();
-
-        public Builder setForgeVersion(String version) {
-            forgeVersion = version;
-            return this;
-        }
 
         public Builder add(final String rootId, final HashCode checksum, final String fileName) {
             mods.add(new ModFileData(rootId, checksum, fileName));
@@ -89,7 +82,7 @@ public record ServerManifest(String forgeVersion, List<ModFileData> files) {
         }
 
         public ServerManifest build() {
-            return new ServerManifest(Objects.requireNonNull(forgeVersion, "Forge version not set"), mods.build());
+            return new ServerManifest(mods.build());
         }
     }
 }

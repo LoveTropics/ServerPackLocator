@@ -1,34 +1,34 @@
 package cpw.mods.forge.serverpacklocator.server;
 
 import com.google.common.hash.HashCode;
+import com.mojang.logging.LogUtils;
 import cpw.mods.forge.serverpacklocator.DirHandler;
 import cpw.mods.forge.serverpacklocator.FileChecksumValidator;
 import cpw.mods.forge.serverpacklocator.PackBuilder;
 import cpw.mods.forge.serverpacklocator.ServerManifest;
-import net.minecraftforge.forgespi.locating.IModFile;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import net.neoforged.neoforgespi.locating.IModFile;
+import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ServerFileManager {
-    private static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger LOGGER = LogUtils.getLogger();
     private final Path manifestPath;
     private final List<Path> modRoots;
-    private final String forgeVersion;
     private Set<String> filesInManifest = Set.of();
     @Nullable
     private String manifestJson;
 
-    ServerFileManager(final Path manifestPath, final List<Path> modRoots, final String forgeVersion) {
+    ServerFileManager(final Path manifestPath, final List<Path> modRoots) {
         this.manifestPath = manifestPath;
         this.modRoots = modRoots;
-        this.forgeVersion = forgeVersion;
     }
 
     String getManifestJson() {
@@ -76,8 +76,7 @@ public class ServerFileManager {
     private ServerManifest generateManifest(final List<IModFile> modList) {
         LOGGER.debug("Generating manifest");
 
-        final ServerManifest.Builder manifest = new ServerManifest.Builder()
-                .setForgeVersion(forgeVersion);
+        final ServerManifest.Builder manifest = new ServerManifest.Builder();
 
         for (final IModFile file : modList) {
             final HashCode checksum = FileChecksumValidator.computeChecksumFor(file.getFilePath());
