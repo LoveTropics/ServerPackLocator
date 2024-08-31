@@ -37,3 +37,4 @@ jobs:
       with:
           name: ${{ steps.jarname.outputs.jarname }}
           path: ${{ steps.jar.outputs.jarfile }}
+          retention-days: 90
