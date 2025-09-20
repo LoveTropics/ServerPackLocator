@@ -1,68 +1,40 @@
-name: 'Build'
+name: Java CI with Gradle
 
 on:
   push:
-    branches:
-      - '**'
-  pull_request:
-    branches:
-      - '*'
-
-# Cancel outdated builds for the same branch
-concurrency:
-  group: ci-build-${{ github.ref }}
-  cancel-in-progress: true
-
+  schedule:
+    - cron: 0 0 1 * *
 jobs:
-  build:
-    # Only run the pull-request build if the pull-request was opened from another repository,
-    # since we already run this workflow for the branch the pull request was made from.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+
+  jdk21:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - uses: gradle/actions/wrapper-validation@v3
+    - name: Setup JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'microsoft'
-          java-version: '21'
+    - name: Build with Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        arguments: build
+        
+    - name: Locate built JARfile
+      id: jar
+      run: echo "jarfile=$(find build/libs/ -name "*.jar" -not -name "*slim*" -not -name "*source*")" >> $GITHUB_OUTPUT
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+    - name: Set Artifact name
+      id: jarname
+      run: echo "jarname=$(find build/libs/ -name "*.jar" -not -name "*slim*" -not -name "*source*" | sed 's:.*/::')" >> $GITHUB_OUTPUT
 
-      - name: Build with Gradle
-        run: ./gradlew build
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: build/libs/
-
-      - name: Remove plain variant before publication
-        run: rm build/libs/serverpacklocator-*-plain.jar
-
-      - name: Remove utilmod before publication
-        run: rm build/libs/serverpacklocator-*-utilmod.jar
-
-      - name: Get project version
-        id: get_version
-        run: ./gradlew configureGitHubActions
-
-      # Auto-Release when pushed to main
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          files: build/libs/serverpacklocator-*.jar
-          make_latest: true
-          fail_on_unmatched_files: true
-          generate_release_notes: true
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+          name: ${{ steps.jarname.outputs.jarname }}
+          path: ${{ steps.jar.outputs.jarfile }}
+          retention-days: 90
